@@ -1,0 +1,24 @@
+#!/bin/bash
+
+#PBS -N run_demuxlet_final
+#PBS -l nodes=1:ppn=2,mem=70gb,walltime=48:00:00
+#PBS -m n
+#PBS -j oe
+#PBS -r n
+
+# -m n == do NOT email when done
+# -j oe == one logfile for out and err
+# -r n == not re-runnable
+module load samtools/1.8
+cd $PBS_O_WORKDIR
+
+VCF=exons_mgp.v5.wildder_B6_snps_indels.wildder.PASS.vcf.gz
+BAM=possorted_genome_bam.bam
+
+./demuxlet --sam $BAM --vcf $VCF --field GT \
+    --out run_demuxlet_final --sam-verbose 10000000 --vcf-verbose 250000 \
+    --group-list barcodes.tsv
+
+RETCODE=$?
+echo "retcode was $RETCODE" >&2
+exit $RETCODE
