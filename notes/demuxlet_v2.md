@@ -14,7 +14,7 @@ I found that we can run `demuxlet` in one of two ways:
    * First run `dsc-pileup` - see `/projects/skelld/shared/genetic_demultiplexing/demuxlet_v2/run_dsc_pileup.slurm`.
    * Second run `demuxlet` using the pileup files produced by `dsc-pileup` - see `/projects/skelld/shared/genetic_demultiplexing/demuxlet_v2/run_demuxlet_plp.slurm`.
 
-We should favor the second approach, running demuxlet in a two-step process. 
+We should __favor the second approach__, running demuxlet in a two-step process. 
 This way allows us more flexibility because we can run demuxlet multiple 
 times in order to look at variability in parameter choices.
 
