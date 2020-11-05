@@ -11,7 +11,11 @@ from their github repo.
 
 I had success running `souporcell` on ATAC data using a command like
 ```
-singularity exec souporcell.sif souporcell_pipeline.py --ploidy 1 --min_alt 10 --min_ref 10 --no_umi True -i $BAM -b $BARCODE_FILE -f genome.fa -t 20 -o $OUTDIR -k $K --known_genotypes cube_3bears.vcf --known_genotypes_sample_names C57BL_6NJ NZO_HlLtJ CAST_EiJ
+singularity exec souporcell.sif souporcell_pipeline.py \
+    --ploidy 1 --min_alt 10 --min_ref 10 --no_umi True -i $BAM \
+    -b $BARCODE_FILE -f genome.fa -t 20 -o $OUTDIR -k $K \
+    --known_genotypes cube_3bears.vcf \
+    --known_genotypes_sample_names C57BL_6NJ NZO_HlLtJ CAST_EiJ
 ```
 In the code the parameters `min_alt` and `min_ref` are tunable and 
 may need to be optimized.
