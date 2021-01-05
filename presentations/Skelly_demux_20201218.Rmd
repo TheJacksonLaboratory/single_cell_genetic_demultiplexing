@@ -1,0 +1,143 @@
+---
+title: "demux analysis"
+author: "Dan Skelly"
+date: "Last updated `r format(Sys.time(), '%a %b %d %Y, %X %Z')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(assertthat)
+library(Ternary)
+library(ggbeeswarm)
+```
+
+Make some plots for my presentation on the status of the 
+Cube genetic demuxxing project on Dec 18 2020.
+
+
+
+```{r}
+dir <- '~/projects/cube/demux/SummarizedResults_fromVivek_430pm'
+x <- readRDS(paste0(dir, '/allData.RDS'))   # list with RNA, ATAC
+```
+
+How well do demuxlet and souporcell agree with each other?
+
+```{r}
+rr <- x[['RNA']]
+aa <- x[['ATAC']]
+
+# singlet rate
+t1 <- table(rr$status)
+t1['singlet']/sum(t1)
+t2 <- table(aa$status)
+t2['singlet']/sum(t2)
+```
+
+```{r, fig.width=10, fig.height=5}
+
+orders <- list(c("C57BL_6NJ", "CAST_EiJ", "NZO_HlLtJ"),
+               c("C57BL_6NJ", "NZO_HlLtJ", "CAST_EiJ"),
+               c("CAST_EiJ", "C57BL_6NJ", "NZO_HlLtJ"),
+               c("CAST_EiJ", "NZO_HlLtJ", "C57BL_6NJ"),
+               c("NZO_HlLtJ", "C57BL_6NJ", "CAST_EiJ"),
+               c("NZO_HlLtJ", "CAST_EiJ", "C57BL_6NJ"))
+agreefunc <- function(nums, chars) {
+    # nums is assignment column
+    # chars is SNG.1ST column
+    nums <- as.numeric(nums)
+    assert_that(min(nums) > -1, max(nums) < 3)
+    agree_frac <- function(nums, nums_convert, chars) {
+        mean(nums_convert[nums + 1] == chars)
+    }
+    a <- sapply(orders, agree_frac, nums=nums, chars=chars)
+    max(a)
+}
+    
+# x2 <- filter(rr, status=='singlet') %>% 
+#     filter(Sample=='MS20045') %>% 
+#     mutate_if(is.factor, as.character) %>%
+#     filter(assignment %in% c('0', '1', '2'))
+    
+with(rr, table(SNG.1ST, assignment))
+with(rr, table(status, SoupClass))
+agree <- filter(rr, status=='singlet') %>% 
+    filter(assignment %in% c('0', '1', '2')) %>%
+    mutate_if(is.factor, as.character) %>%
+    group_by(Sample) %>% 
+    summarize(frac_agree=agreefunc(assignment, SNG.1ST), NN=n())
+sum(agree$NN)
+p <- ggplot(agree, aes(x=Sample, y=frac_agree)) +
+    geom_col() + theme_bw(base_size=20) +
+    ylab("Fraction agreement") +
+    theme(axis.text.x=element_text(angle=90))
+print(p)
+
+agree2 <- filter(aa, status=='singlet') %>%
+    filter(assignment %in% c('0', '1', '2')) %>%
+    mutate_if(is.factor, as.character) %>%
+    group_by(Sample) %>% 
+    summarize(frac_agree=agreefunc(assignment, SNG.1ST), NN=n())
+sum(agree2$NN)
+p2 <- ggplot(agree2, aes(x=Sample, y=frac_agree)) +
+    geom_col() + theme_bw(base_size=20) +
+    ylab("Fraction agreement") +
+    theme(axis.text.x=element_text(angle=90))
+print(p2)
+```
+
+Ternary plot to show for each sample how evenly the pools of 
+calls are split.
+
+```{r, fig.width=8, fig.height=8}
+TernaryPlot(alab = 'B6', blab = 'CAST', clab = 'NZO')
+```
+```{r, fig.width=8, fig.height=8}
+tt <- filter(rr, status=='singlet') %>% 
+    mutate_if(is.factor, as.character) %>%
+    group_by(Sample) %>% 
+    summarize(frac_B6=100*mean(SNG.1ST == "C57BL_6NJ"),
+           frac_CAST=100*mean(SNG.1ST == "CAST_EiJ"),
+           frac_NZO=100*mean(SNG.1ST == "NZO_HlLtJ")) %>%
+    select(Sample, starts_with('frac')) %>%
+    mutate(col='red', bg='pink')
+pool2 <- tt$Sample %in% c('MS20071', 'MS20077', 'MS20083', 'MS20094')
+tt$col[pool2] <- 'forestgreen'
+tt$bg[pool2] <- 'green'
+TernaryPlot(alab = 'B6', blab = 'CAST', clab = 'NZO')
+col <- tt$col
+bg <- tt$bg
+AddToTernary(points, c(1/3, 1/3, 1/3), pch=13, cex=2, col='blue')
+AddToTernary(points, split(select(tt, -Sample, -col, -bg), tt$Sample) %>% sapply(., as.numeric), pch = 21, cex = 2, col=col, bg=bg)
+```
+
+Look at ambient RNA. This is from Vivek's 
+slide 73 at [this link](https://docs.google.com/presentation/d/1PRPDNA1x2M7NH2Yg2pohXh0liPVpDgLEIZsqolpV8vY/edit#slide=id.gb1812245dd_0_77).
+
+```{r, fig.width=10, fig.height=5}
+samples <- tibble(rna_id=c(45, 46, 61, 63, 69, 71, 65, 66, 73, 75, 92, 94, NA, NA, 96, 98, 82, 83, 100, 102, 90), atac_id=c(47, 48, 62, 64, 70, 72, 67, 68, 74, 76, 93, 95, 80, 81, 97, 99, 84, 85, 101, 103, 91), tissue=c('islet', 'islet', 'adipose', 'adipose', 'adipose', 'adipose', 'islet', 'islet', 'islet', 'adipose', 'adipose', 'adipose', 'islet', 'islet', 'adipose', 'adipose', 'islet', 'islet', 'adipose', 'adipose', 'adipose'), sex=c('m', 'm', 'm', 'm', 'f', 'f', 'f', 'f', 'm', 'm', 'f', 'f', 'm', 'm', 'm', 'm', 'f', 'f', 'f', 'f', 'm'), diet=c('ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl', 'HFHS', 'HFHS', 'HFHS', 'HFHS', 'ctrl', 'HFHS', 'ctrl', 'HFHS', 'ctrl', 'HFHS', 'ctrl', 'HFHS', 'HFHS')) %>%
+    mutate(rna_sample=sprintf("MS20%03d", rna_id), atac_sample=sprintf("MS20%03d", atac_id)) %>%
+    pivot_longer(cols=c(rna_sample, atac_sample), names_to='dt', values_to='sample') %>%
+    separate(dt, into=c('datatype', 'id'), sep="_") %>% 
+    select(-ends_with('id'))
+amb <- tibble(id=c(45, 46, 61, 63, 65, 66, 69, 71, 73, 75, 77, 82, 83, 90, 92, 94, 96, 98, 100, 102, 47, 48, 62, 64, 67, 68, 70, 72, 74, 76, 80, 81, 85, 91, 93, 95, 97, 99, 101, 103), pct=c(7.68, 13.59, 32.04, 39.50, 1.90, 1.90, 5.89, 16.94, 1.71, 8.23, 2.50, 1.90, 2.59, 8.91, 6.37, 22.29, 6.32, 23.60, 7.11, 6.46,     6.43, 12.15, 27.53, 25.52, 8.10, 28.52, 25.90, 12.50, 4.61, 28.44, 3.40, 12.50, 12.50, 32.47, 21.69, 12.50, 12.04, 11.33, 24.62, 26.29)) %>%
+    mutate(sample=sprintf("MS20%03d", id))
+
+dat <- inner_join(samples, amb)
+group_by(dat, datatype, tissue) %>% summarize(mean_amb=mean(pct))
+# p3 <- ggplot(dat, aes(pct)) +
+#     geom_histogram(bins=30) +
+#     facet_grid(tissue ~ datatype) +
+#     theme_bw(base_size=20) + ylab("") + 
+#     xlab("Ambient RNA estimate")
+p3 <- ggplot(dat, aes(x=tissue, y=pct)) +
+    geom_violin(aes(fill=tissue)) +
+    geom_quasirandom() +
+    facet_wrap(~ datatype) +
+    theme_bw(base_size=20) + ylab("") + 
+    xlab("Ambient RNA estimate")
+print(p3)
+```
+
