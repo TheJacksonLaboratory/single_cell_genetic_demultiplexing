@@ -1,3 +1,5 @@
+# Can run this script using
+# sumner:/projects/skelld/sif/doubletfinder_r4.0.4.sif
 library(tidyverse)
 library(Seurat)
 library(DoubletFinder)
