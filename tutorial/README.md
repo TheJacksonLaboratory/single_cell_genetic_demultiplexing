@@ -5,7 +5,7 @@
 Find a founder strain VCF at
 `/projects/skelld/shared/genetic_demultiplexing/CC_founders.vcf.gz`
 
-This VCF was made using `CC_founders.pbs`.
+This VCF was made using `CC_founders.pbs` (in this repo).
 Note that in the VCF file, I used C57BL/6NJ rather than /6J – this is a 
 surrogate for B6 as the two lines only differ by a couple hundred variants. 
 The reason is that it’s cumbersome to create a column in a VCF file for the 
@@ -47,7 +47,11 @@ mainSoupCellRna.nf
 
 ```
 # RNA
-singularity run popscle-1.0.sif demuxlet --sam $bam --vcf $vcf --out $output --sam-verbose 10000000 --vcf-verbose 250000 --alpha 0.0 --alpha 0.5 --tag-group CB --tag-UMI UB --field GT  --group-list $barcodes
+singularity run popscle-1.0.sif demuxlet --sam $bam --vcf $vcf --out $output \
+    --sam-verbose 10000000 --vcf-verbose 250000 --alpha 0.0 --alpha 0.5 \
+    --tag-group CB --tag-UMI UB --field GT  --group-list $barcodes
 # ATAC
-singularity run popscle-1.0.sif demuxlet --sam $bam --vcf $vcf --out $output --sam-verbose 10000000 --vcf-verbose 250000 --alpha 0.0 --alpha 0.5 --tag-group CB --field GT  --group-list $barcodes
+singularity run popscle-1.0.sif demuxlet --sam $bam --vcf $vcf --out $output \
+    --sam-verbose 10000000 --vcf-verbose 250000 --alpha 0.0 --alpha 0.5 \
+    --tag-group CB --field GT  --group-list $barcodes
 ```
