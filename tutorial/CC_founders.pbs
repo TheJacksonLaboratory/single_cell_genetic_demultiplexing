@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#PBS -N CC_founders
+#PBS -l nodes=1:ppn=1,mem=30gb,walltime=12:00:00
+#PBS -m e
+#PBS -j oe
+#PBS -r n
+
+# -m e == email when done
+# -j oe == one logfile for out and err
+# -r n == not re-runnable
+module load tabix
+module load bcftools/1.8
+cd $PBS_O_WORKDIR   # directory where script was qsubbed
+
+DIR1=/data/shared/sanger/current_snps/REL-1505
+DIR2=/data/shared/sanger/current_indels/REL-1505
+VCF=$DIR1/mgp.v5.merged.snps_all.dbSNP142.vcf.gz
+
+OUT_VCF=CC_founders.vcf.gz
+bcftools view -f PASS --samples A_J,C57BL_6NJ,129S1_SvImJ,NOD_ShiLtJ,NZO_HlLtJ,CAST_EiJ,PWK_PhJ,WSB_EiJ \
+    --trim-alt-alleles --min-ac 1 $VCF \
+    | bcftools annotate --remove FORMAT,^INFO/AC --output $OUT_VCF --output-type z
+
+# Reheader to put MT ahead of X & Y.
+# This is default for cellranger v3 B6 refdata
+bash reheader_switch_MT.sh $OUT_VCF
+bcftools reheader -h $OUT_VCF.reheader -o $OUT_VCF.reheaded $OUT_VCF
+mv $OUT_VCF.reheaded $OUT_VCF
+rm -f $OUT_VCF.reheader 
+bcftools index $OUT_VCF
+
+# Takes about an hour to produce these files.
+RETCODE=$?
+echo "retcode was $RETCODE" >&2
+exit $RETCODE
