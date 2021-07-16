@@ -31,8 +31,8 @@ We used two different genetic demultiplexing algorithms:
 
 I have containers at
 
- * `souporcell` - `/projects/skelld/sif/souporcell.sif` or [here](http://jaxreg.jax.org/containers/486)
- * `demuxlet` - `/projects/skelld/sif/popscle-1.0.sif` or [here](http://jaxreg.jax.org/containers/488)
+ * `souporcell` - `/projects/skelld/sif/souporcell.sif` or [here](http://jaxreg.jax.org/containers/488)
+ * `demuxlet` - `/projects/skelld/sif/popscle-1.0.sif` or [here](http://jaxreg.jax.org/containers/486)
 
 ## Running the demultiplexing
 
