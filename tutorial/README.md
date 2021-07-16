@@ -25,8 +25,8 @@ We used two different genetic demultiplexing algorithms:
 
 I have containers at
 
- * 
- *
+ * `souporcell` - `/projects/skelld/sif/souporcell.sif`
+ * `demuxlet` - `/projects/skelld/sif/popscle-1.0.sif`
 
 ## Running the demultiplexing
 
