@@ -1,5 +1,11 @@
 # Tutorial on genetic demultiplexing using CC/DO founder data
 
+To run genetic demultiplexing, you will need a BAM file of aligned reads
+(the CellRanger BAM works well), the cell barcodes you want to
+examine (again the CellRanger barcodes file works), and a VCF file
+giving genotypes of the strains in your pool.
+
+
 ## VCF containing strains in your pool
 
 Find a founder strain VCF at
