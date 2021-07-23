@@ -1,0 +1,285 @@
+---
+title: "Demux data analysis"
+author: "Vivek Kohar"
+date: "Last updated `r format(Sys.time(), '%a %b %d %Y, %X %Z')`"
+output:
+  html_document:
+    code_download: true
+---
+
+## Script used for demux data analysis {.tabset}
+
+
+
+### Loading data
+
+Load the libraries, general functions, and others
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, eval = FALSE )
+library(tidyverse)
+```
+
+Read the souporcell demux data
+```{r, eval=FALSE}
+sampleName <- list.dirs('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/cube_atac', recursive = FALSE)
+sampleName <- c(sampleName,list.dirs('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/cube_atac_2021', recursive = FALSE))
+
+AllClusters <- list()
+for(i in 1:length(sampleName)){
+    print(sampleName[i])
+    if(file.exists(paste0(sampleName[i],"/output/clusters.tsv"))){
+        clusters <- read.table(paste0(sampleName[i],"/output/clusters.tsv"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllClusters[[i]] <- clusters
+            print(sampleName[i])
+        }
+    }
+}
+AllClusters <- do.call(rbind,AllClusters)
+AllClusters$Sample <- substr(AllClusters$Sample, nchar(AllClusters$Sample)-6,nchar(AllClusters$Sample)) 
+table(AllClusters$Sample)
+write.table(AllClusters, file = "/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/CubeAtacSouporcell.csv", sep=",", col.names = T,row.names = F,quote = F)
+
+AllClusters <- read.csv('demuxResults/CubeRnaSouporcell.csv')
+library(ggplot2)
+ggplot(AllClusters) +
+    geom_bar(aes(status)) +
+    facet_wrap(~ Sample) +
+    theme_bw()
+
+
+library(ggplot2)
+ggplot(AllClusters[AllClusters$status %in% 'singlet',]) +
+    geom_bar(aes(assignment)) +
+    facet_wrap(~ Sample) +
+    theme_bw()
+
+# Read estimated ambient RNA from souporcell output
+ambientRNA <- data.frame(Sample = sampleName)
+for(i in 1:length(sampleName)){
+    if(file.exists(paste0(sampleName[i],"/output/ambient_rna.txt"))){
+        con <- file(paste0(sampleName[i],"/output/ambient_rna.txt"), "r")
+        ambientRNA$Text[i] = readLines(con, 1)
+    }
+}
+
+ambientRNA$Text <- substr(ambientRNA$Text, 25,nchar(ambientRNA$Text))
+ambientRNA$Sample <- substr(ambientRNA$Sample, nchar(ambientRNA$Sample)-6,nchar(ambientRNA$Sample)) 
+write.table(ambientRNA, file = "/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/ambientRNAAtacSouporcell.csv", sep=",", col.names = T,row.names = F,quote = F)
+
+##############################################################################
+# Load the demuxlet output
+
+# sampleName <- list.files('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac_2021', recursive = FALSE)
+
+# sampleName <- list.dirs('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/cube_atac_2021', recursive = FALSE)
+sampleName <- substr(sampleName, nchar(sampleName)-6,nchar(sampleName)) 
+
+AllDemuxV2 <- data.frame()
+for(i in 1:length(sampleName)){
+    
+    if(file.exists(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac_2021/','demux_v2_',sampleName[i],".best"))){
+        clusters <- read.table(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac_2021/','demux_v2_',sampleName[i],".best"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllDemuxV2 <- rbind(AllDemuxV2, clusters)
+        }
+    }
+}
+
+# sampleName <- list.files('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac', recursive = FALSE)
+# sampleName <- substr(sampleName, nchar(sampleName)-11,nchar(sampleName)-5) 
+
+for(i in 1:length(sampleName)){
+    
+    if(file.exists(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac/','demux_v2_',sampleName[i],".best"))){
+        clusters <- read.table(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_atac/','demux_v2_',sampleName[i],".best"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllDemuxV2 <- rbind(AllDemuxV2, clusters)
+        }
+    }
+}
+
+table(AllDemuxV2$Sample)
+
+write.table(AllDemuxV2, file = "/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/CubeAtacDemuxlet.csv", sep=",", col.names = T,row.names = F,quote = F)
+AllDemuxV2 <- read.csv('demuxResults/CubeRnaDemuxlet.csv', header = F)
+#AllDemuxV2 <- AllDemuxV2[,-c(21:26)]
+#colnames(AllDemuxV2) <- AllDemuxV2[1,]
+#AllDemuxV2 <- AllDemuxV2[-1,]
+#colnames(AllDemuxV2) <- c(colnames(AllDemuxV2)[1:20], 'Sample')
+colnames(AllClusters) <- c("BARCODE",colnames(AllClusters)[2:ncol(AllClusters)])
+
+tmp <- full_join(AllClusters,AllDemuxV2)
+
+tmp <- tmp[!(tmp$Sample == 'MS20045'),]
+
+# write.table(tmp, file = "CubeRna.csv", sep=",", col.names = T,row.names = F,quote = F)
+tmp$SoupClass <- as.character(tmp$assignment)
+tmp$SoupClass <- substr(tmp$SoupClass,1,1)
+tmp$SoupClass[which(tmp$status == "doublet")] <- "doublet"
+
+tmp$SoupClass[tmp$SoupClass %in% '0'] <- 'B6'
+tmp$SoupClass[tmp$SoupClass %in% '1'] <- 'NZO'
+tmp$SoupClass[tmp$SoupClass %in% '2'] <- 'CAST'
+
+table(tmp$SoupClass)
+tmp$demuxClass <- as.character(tmp$BEST.GUESS)
+tmp$demuxClass[tmp$BEST.GUESS %in% 'NZO_HlLtJ,NZO_HlLtJ,0.00'] <- 'NZO'
+tmp$demuxClass[tmp$BEST.GUESS %in% 'C57BL_6NJ,C57BL_6NJ,0.00'] <- 'B6'
+tmp$demuxClass[tmp$BEST.GUESS %in% 'CAST_EiJ,CAST_EiJ,0.00'] <- 'CAST'
+tmp$demuxClass[which(tmp$DROPLET.TYPE == "DBL")] <- "doublet"
+tmp$demuxClass[which(tmp$DROPLET.TYPE == "AMB")] <- "AMB"
+table(tmp$demuxClass)
+table(tmp$BEST.GUESS)
+
+tmp$demuxClass2 <- as.character(tmp$BEST.GUESS)
+tmp$demuxClass2[tmp$demuxClass2 %in% 'NZO_HlLtJ,NZO_HlLtJ,0.00'] <- 'NZO'
+tmp$demuxClass2[tmp$demuxClass2 %in% 'C57BL_6NJ,C57BL_6NJ,0.00'] <- 'B6'
+tmp$demuxClass2[tmp$demuxClass2 %in% 'CAST_EiJ,CAST_EiJ,0.00'] <- 'CAST'
+table(tmp$demuxClass2)
+table(tmp$demuxClass2)
+library(dplyr)
+sum(tmp$SoupClass == tmp$demuxClass2, na.rm = TRUE)*100/dim(tmp)[1]
+tmp$Match2 <- tmp$SoupClass == tmp$demuxClass2
+tmp$Match <- tmp$SoupClass == tmp$demuxClass
+processData <- tmp %>% 
+    group_by(Sample,SoupClass) %>% 
+    summarise(Percentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(Percentage=Percentage/sum(Percentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=SoupClass,y=Percentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+
+write.table(tmp, file = "/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/ cube_atac_demux.csv", sep=",", col.names = T,row.names = F,quote = F)
+
+###############################################################################
+# A first look at the outputs
+processData <- tmp %>% 
+    group_by(Sample,demuxClass2) %>% 
+    summarise(demuxPercentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(demuxPercentage=demuxPercentage/sum(demuxPercentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=demuxClass2,y=demuxPercentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+tmp$SoupClass2 <- as.character(tmp$assignment)
+tmp$SoupClass2 <- substr(tmp$SoupClass2,1,1)
+
+tmp$SoupClass2[tmp$SoupClass2 %in% '0'] <- 'B6'
+tmp$SoupClass2[tmp$SoupClass2 %in% '1'] <- 'NZO'
+tmp$SoupClass2[tmp$SoupClass2 %in% '2'] <- 'CAST'
+processData <- tmp %>% 
+    group_by(Sample,SoupClass2) %>% 
+    summarise(Percentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(Percentage=Percentage/sum(Percentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=SoupClass2,y=Percentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+
+sum(tmp$SoupClass2 == tmp$demuxClass2)*100/dim(tmp)[1]
+processData <- tmp %>%
+    group_by(Sample, Match) %>%
+    summarize(n())
+
+sum(tmp$status == "doublet")
+sum(tmp$SoupClass=="doublet")
+allData <- list(RNA = tmp, ATAC = tmpATAC)
+saveRDS(allData, file = "allData.RDS")
+
+processData <- tmp %>%
+    group_by(Sample, SoupClass) %>%
+    summarize(n())
+processData <- group_by(tmp, Sample) %>% mutate(percent = SoupClass/sum(SoupClass))
+
+allDemuxMetrics <- data.frame(BARCODE = AllDemuxFullRunUB$BARCODE, UB_BEST = AllDemuxFullRunUB$BEST)
+tmp <- AllDemuxFullRun[AllDemuxFullRunUB$BARCODE,]
+allDemuxMetrics <- merge(allDemuxMetrics, tmp[,c('BARCODE', 'BEST')])
+colnames(allDemuxMetrics) <- c("BARCODE", "FR_BEST",    "UB_BEST")
+tmp <- AllDemux[AllDemuxFullRunUB$BARCODE,]
+allDemuxMetrics <- merge(allDemuxMetrics, tmp[,c('BARCODE', 'BEST')])
+
+table(allDemuxMetrics$UB_BEST)
+table(allDemuxMetrics$BEST)
+table(allDemuxMetrics$FR_BEST)
+
+sum(allDemuxMetrics$UB_BEST == allDemuxMetrics$BEST)
+sum(allDemuxMetrics$UB_BEST == allDemuxMetrics$BEST)
+sum(allDemuxMetrics$UB_BEST == allDemuxMetrics$BEST)
+
+
+AllDemuxV2 <- data.frame()
+for(i in 1:length(sampleName)){
+    if(file.exists(paste0("~/Box/Cube/SummarizedResults/demux_v2_",sampleName[i],".best"))){
+        clusters <- read.table(paste0("~/Box/Cube/SummarizedResults/demux_v2_",sampleName[i],".best"),header = T,sep = "\t")
+        print(paste0("~/Box/Cube/SummarizedResults/demux_v2_",sampleName[i],".best"))
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllDemuxV2 <- rbind(AllDemuxV2, clusters)
+        }
+    }
+}
+
+library(stringr)
+tmp <- merge(AllDemuxV2,AllDemuxFullRun, by.x = c('BARCODE','Sample'),by.y = c('BARCODE','Sample'))
+tmpChr <- str_split(tmp$BEST.GUESS,',')
+tmpChr <- unlist(lapply(tmpChr, function(x) x[1]))
+tmp$BESTV2 <- tmpChr
+sum(as.character(tmp$SNG.1ST) == as.character(tmp$BESTV2))*100/dim(tmp)[1]
+tmp2 <- tmp[as.character(tmp$SNG.1ST) != as.character(tmp$BESTV2),]
+
+tmp <- allDemuxMetrics[which(allDemuxMetrics$UB_BEST != allDemuxMetrics$FR_BEST),]
+
+allDemuxMetrics$BARCODE <- AllDemux$BARCODE
+AllDemux <- AllDemuxFullRun
+table(AllDemux$Sample)
+table(AllDemux$BEST)
+# demux <- read.table("../demuxlet/MS20015.best", header = T)
+library(ggplot2)
+ggplot(AllDemux) +
+    geom_bar(aes(BEST)) +
+    theme_bw() +
+    facet_wrap(~Sample) +
+    #  scale_y_log10() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+AllDemux2 <- AllDemux[!(AllDemux$Sample %in% "MS20082"), ]
+sum((AllDemux2$BARCODE %in% AllClusters$barcode))
+length(union(AllDemux2$BARCODE , AllClusters$barcode))
+sum(duplicated(AllDemux2$BARCODE))
+sum(duplicated(AllClusters$barcode))
+
+selSample <- 'MS20102'
+AllDemux2 <- AllDemux[(AllDemux$Sample %in% selSample), ]
+AllClusters2 <- AllClusters[(AllClusters$Sample %in% selSample), ]
+
+mergeData <- merge(AllDemux2, AllClusters2, by.x = "BARCODE", by.y = "barcode")
+mergeData$demuxClass <- as.character(mergeData$BEST)
+mergeData$spcClass <- as.character(mergeData$assignment)
+mergeData$demuxClass[mergeData$BEST %in% 'SNG-NZO_HlLtJ'] <- 'NZO'
+mergeData$demuxClass[mergeData$BEST %in% 'SNG-C57BL_6NJ'] <- 'B6'
+mergeData$demuxClass[mergeData$BEST %in% 'SNG-CAST_EiJ'] <- 'CAST'
+mergeData$demuxClass[mergeData$BEST %in% c('DBL-C57BL_6NJ-CAST_EiJ-0.500', 'DBL-C57BL_6NJ-NZO_HlLtJ-0.500','DBL-NZO_HlLtJ-C57BL_6NJ-0.500','DBL-NZO_HlLtJ-CAST_EiJ-0.500',
+                                           'DBL-CAST_EiJ-C57BL_6NJ-0.500','DBL-CAST_EiJ-NZO_HlLtJ-0.500')] <- 'doublet'
+mergeData$demuxClass[mergeData$BEST %in% c('AMB-C57BL_6NJ-NZO_HlLtJ-C57BL_6NJ/NZO_HlLtJ', 'AMB-C57BL_6NJ-NZO_HlLtJ-CAST_EiJ/C57BL_6NJ')] <- 'other'
+
+table(mergeData$demuxClass)
+mergeData$spcClass[mergeData$assignment %in% '0'] <- 'B6'
+mergeData$spcClass[mergeData$assignment %in% '1'] <- 'NZO'
+mergeData$spcClass[mergeData$assignment %in% '2'] <- 'CAST'
+mergeData$spcClass[mergeData$status %in% 'doublet'] <- 'doublet'
+mergeData$spcClass[!(mergeData$spcClass %in% c('B6',     'NZO'     ,'CAST','doublet'))] <- 'other'
+
+table(mergeData$spcClass)
+```

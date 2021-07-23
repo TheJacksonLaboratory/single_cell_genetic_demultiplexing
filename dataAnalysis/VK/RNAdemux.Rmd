@@ -1,0 +1,376 @@
+---
+title: "Demux data analysis"
+author: "Vivek Kohar"
+date: "Last updated `r format(Sys.time(), '%a %b %d %Y, %X %Z')`"
+output:
+  html_document:
+    code_download: true
+---
+
+## Script used for demux data analysis {.tabset}
+
+### Souporcell
+```{r, eval=FALSE}
+
+sampleName <- list.dirs('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/souporcell/cube_rna', recursive = FALSE)
+
+AllClusters <- list()
+for(i in 1:length(sampleName)){
+    print(sampleName[i])
+    if(file.exists(paste0(sampleName[i],"/output/clusters.tsv"))){
+        clusters <- read.table(paste0(sampleName[i],"/output/clusters.tsv"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllClusters[[i]] <- clusters
+            print(sampleName[i])
+        }
+    }
+}
+AllClusters <- do.call(rbind,AllClusters)
+AllClusters$Sample <- substr(AllClusters$Sample, nchar(AllClusters$Sample)-6,nchar(AllClusters$Sample)) 
+table(AllClusters$Sample)
+write.table(AllClusters, file = "CubeRnaSouporcell.csv", sep=",", col.names = T,row.names = F,quote = F)
+
+AllClusters <- read.csv('demuxResults/CubeRnaSouporcell.csv')
+library(ggplot2)
+ggplot(AllClusters) +
+    geom_bar(aes(status)) +
+    facet_wrap(~ Sample) +
+    theme_bw()
+
+
+library(ggplot2)
+ggplot(AllClusters[AllClusters$status %in% 'singlet',]) +
+    geom_bar(aes(assignment)) +
+    facet_wrap(~ Sample) +
+    theme_bw()
+
+```
+
+### Ambient RNA
+
+```{r, eval=FALSE}
+ambientRNA <- data.frame(Sample = sampleName)
+for(i in 1:length(sampleName)){
+    if(file.exists(paste0(sampleName[i],"/output/ambient_rna.txt"))){
+        con <- file(paste0(sampleName[i],"/output/ambient_rna.txt"), "r")
+        ambientRNA$Text[i] = readLines(con, 1)
+    }
+}
+
+ambientRNA$Text <- substr(ambientRNA$Text, 25,nchar(ambientRNA$Text))
+ambientRNA$Sample <- substr(ambientRNA$Sample, nchar(ambientRNA$Sample)-6,nchar(ambientRNA$Sample)) 
+write.table(ambientRNA, file = "ambientRNARnaSouporcell.csv", sep=",", col.names = T,row.names = F,quote = F)
+##############################################################################
+```
+
+### Demuxlet
+
+```{r, eval=FALSE}
+sampleName <- list.files('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_rna_2021', recursive = FALSE)
+sampleName <- substr(sampleName, nchar(sampleName)-6,nchar(sampleName)) 
+
+AllDemuxV2 <- data.frame()
+for(i in 1:length(sampleName)){
+    
+    if(file.exists(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_rna_2021/','demux_v2_',sampleName[i],".best"))){
+        clusters <- read.table(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_rna_2021/','demux_v2_',sampleName[i],".best"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllDemuxV2 <- rbind(AllDemuxV2, clusters)
+        }
+    }
+}
+for(i in 1:length(sampleName)){
+    
+    if(file.exists(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_rna/','demux_v2_',sampleName[i],".best"))){
+        clusters <- read.table(paste0('/projects/rosenthal-lab/cube/genetic_demultiplexing/sc-data-rerun/demuxlet/cube_rna/','demux_v2_',sampleName[i],".best"),header = T,sep = "\t")
+        if(dim(clusters)[1]>0){
+            clusters$Sample <- sampleName[i]
+            AllDemuxV2 <- rbind(AllDemuxV2, clusters)
+        }
+    }
+}
+
+table(AllDemuxV2$Sample)
+
+write.table(AllDemuxV2, file = "CubeRnaDemuxlet.csv", sep=",", col.names = T,row.names = F,quote = F)
+AllDemuxV2 <- read.csv('demuxResults/CubeRnaDemuxlet.csv', header = F)
+AllDemuxV2 <- AllDemuxV2[,-c(21:26)]
+colnames(AllDemuxV2) <- AllDemuxV2[1,]
+AllDemuxV2 <- AllDemuxV2[-1,]
+colnames(AllDemuxV2) <- c(colnames(AllDemuxV2)[1:20], 'Sample')
+colnames(AllClusters) <- c("BARCODE",colnames(AllClusters)[2:ncol(AllClusters)])
+
+tmp <- full_join(AllClusters,AllDemuxV2)
+# write.table(tmp, file = "CubeRna.csv", sep=",", col.names = T,row.names = F,quote = F)
+tmp$SoupClass <- as.character(tmp$assignment)
+tmp$SoupClass <- substr(tmp$SoupClass,1,1)
+tmp$SoupClass[which(tmp$status == "doublet")] <- "doublet"
+
+tmp$SoupClass[tmp$SoupClass %in% '0'] <- 'B6'
+tmp$SoupClass[tmp$SoupClass %in% '1'] <- 'NZO'
+tmp$SoupClass[tmp$SoupClass %in% '2'] <- 'CAST'
+
+table(tmp$SoupClass)
+tmp$demuxClass <- as.character(tmp$BEST.GUESS)
+tmp$demuxClass[tmp$BEST.GUESS %in% 'NZO_HlLtJ'] <- 'NZO'
+tmp$demuxClass[tmp$BEST.GUESS %in% 'C57BL_6NJ'] <- 'B6'
+tmp$demuxClass[tmp$BEST.GUESS %in% 'CAST_EiJ'] <- 'CAST'
+tmp$demuxClass[which(tmp$DROPLET.TYPE == "DBL")] <- "doublet"
+tmp$demuxClass[which(tmp$DROPLET.TYPE == "AMB")] <- "AMB"
+table(tmp$demuxClass)
+table(tmp$BEST.GUESS)
+
+tmp$demuxClass2 <- as.character(tmp$BEST.GUESS)
+tmp$demuxClass2[tmp$demuxClass2 %in% 'NZO_HlLtJ'] <- 'NZO'
+tmp$demuxClass2[tmp$demuxClass2 %in% 'C57BL_6NJ'] <- 'B6'
+tmp$demuxClass2[tmp$demuxClass2 %in% 'CAST_EiJ'] <- 'CAST'
+table(tmp$demuxClass2)
+table(tmp$demuxClass2)
+library(dplyr)
+sum(tmp$SoupClass == tmp$demuxClass2, na.rm = TRUE)*100/dim(tmp)[1]
+tmp$Match2 <- tmp$SoupClass == tmp$demuxClass2
+tmp$Match <- tmp$SoupClass == tmp$demuxClass
+processData <- tmp %>% 
+    group_by(Sample,SoupClass) %>% 
+    summarise(Percentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(Percentage=Percentage/sum(Percentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=SoupClass,y=Percentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+
+write.table(tmp, file = "cube_rna_demux.csv", sep=",", col.names = T,row.names = F,quote = F)
+
+processData <- tmp %>% 
+    group_by(Sample,demuxClass2) %>% 
+    summarise(demuxPercentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(demuxPercentage=demuxPercentage/sum(demuxPercentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=demuxClass2,y=demuxPercentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+tmp$SoupClass2 <- as.character(tmp$assignment)
+tmp$SoupClass2 <- substr(tmp$SoupClass2,1,1)
+
+tmp$SoupClass2[tmp$SoupClass2 %in% '0'] <- 'B6'
+tmp$SoupClass2[tmp$SoupClass2 %in% '1'] <- 'NZO'
+tmp$SoupClass2[tmp$SoupClass2 %in% '2'] <- 'CAST'
+processData <- tmp %>% 
+    group_by(Sample,SoupClass2) %>% 
+    summarise(Percentage=n()) %>% 
+    group_by(Sample) %>% 
+    mutate(Percentage=Percentage/sum(Percentage)*100)
+library(ggplot2)
+ggplot(processData) +
+    geom_col(aes(x=SoupClass2,y=Percentage)) +
+    facet_wrap(~Sample) +
+    theme(axis.text.x = element_text(size=20, hjust = 1,angle = 90))
+
+sum(tmp$SoupClass2 == tmp$demuxClass2)*100/dim(tmp)[1]
+processData <- tmp %>%
+    group_by(Sample, Match) %>%
+    summarize(n())
+
+sum(tmp$status == "doublet")
+sum(tmp$SoupClass=="doublet")
+allData <- list(RNA = tmp, ATAC = tmpATAC)
+saveRDS(allData, file = "allData.RDS")
+
+processData <- tmp %>%
+    group_by(Sample, SoupClass) %>%
+    summarize(n())
+processData <- group_by(tmp, Sample) %>% mutate(percent = SoupClass/sum(SoupClass))
+```
+
+#### Plots
+
+```{r, eval=FALSE}
+ggplot(AllDemux) +
+    geom_histogram(aes(N.SNP)) +
+    scale_x_log10() +
+    theme_bw()
+
+ggplot(demux) +
+    geom_bar(aes(SNG.1ST)) +
+    theme_bw()
+
+ggplot(demux) +
+    geom_bar(aes(SNG.2ND)) +
+    theme_bw()
+
+demux <- read.table("../demuxlet/merged_MS19047_48.best", header = T)
+library(ggplot2)
+ggplot(demux) +
+    geom_bar(aes(BEST)) +
+    theme_bw() +
+    scale_y_log10() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggplot(demux) +
+    geom_histogram(aes(N.SNP)) +
+    scale_x_log10() +
+    theme_bw()
+
+ggplot(demux) +
+    geom_histogram(aes(N.SNP)) +
+    #  scale_x_log10() +
+    scale_y_log10() +
+    facet_wrap(~BEST)
+theme_bw()
+
+
+ggplot(demux) +
+    geom_bar(aes(SNG.1ST)) +
+    theme_bw()
+
+ggplot(demux) +
+    geom_bar(aes(SNG.2ND)) +
+    theme_bw()
+############################################################################
+```
+
+
+### Insilico pooling and demux testing and result analysis
+
+```{r, eval=FALSE}
+# Some old testing results  - insilico pooling samples and demux results
+
+demux <- read.table("../demuxlet/merged_MS19046_47_48.best", header = T)
+library(ggplot2)
+ggplot(demux) +
+    geom_bar(aes(BEST)) +
+    theme_bw() +
+    # scale_y_log10() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+table(demux$BEST)
+ggplot(demux) +
+    geom_histogram(aes(N.SNP)) +
+    #  scale_x_log10() +
+    theme_bw()
+
+ggplot(demux) +
+    geom_histogram(aes(N.SNP)) +
+    #  scale_x_log10() +
+    scale_y_log10() +
+    facet_wrap(~BEST) +
+    theme_bw()
+
+
+ggplot(demux) +
+    geom_bar(aes(SNG.1ST)) +
+    theme_bw()
+
+ggplot(demux) +
+    geom_bar(aes(SNG.2ND)) +
+    theme_bw()
+barcodes <- read.table("../demuxlet/barcodes_MS19047.tsv")
+barcodes$strain <- "C57BL_6NJ"
+tmp <- read.table("../demuxlet/barcodes_MS19048.tsv")
+tmp$strain <- "NZO_HlLtJ"
+barcodes <- rbind(barcodes,tmp)
+tmp <- read.table("../demuxlet/barcodes_MS19046.tsv")
+tmp$strain <- "CAST_EiJ"
+barcodes <- rbind(barcodes,tmp)
+
+sum(duplicated(barcodes$V1))
+dup <- barcodes[duplicated(barcodes$V1) | duplicated(barcodes$V1,fromLast = T),]
+tmp <- demux[demux$BARCODE %in% dup$V1,]
+ggplot(tmp) +
+    geom_bar(aes(BEST)) +
+    theme_bw() +
+    # scale_y_log10() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggplot(tmp) +
+    geom_histogram(aes(N.SNP)) +
+    scale_x_log10() +
+    theme_bw()
+
+barcodesFil <- barcodes[-which(barcodes$V1 %in% dup$V1),]
+demuxFil <- demux[-which(demux$BARCODE %in% dup$V1),]
+# barcodesFil <- barcodesFil[order(barcodes$V1),]
+tmp <- merge(demuxFil, barcodesFil,by.x = "BARCODE",by.y = "V1" )
+tmp$strainDemux <- substr(tmp$BEST, 5,nchar(as.character(tmp$BEST)))
+table(tmp$SNG.1ST == tmp$strain)
+table(tmp$strainDemux == tmp$strain)
+table(tmp$BEST[tmp$strain=="NZO_HlLtJ"])
+table(tmp$BEST[tmp$strain=="C57BL_6NJ"])
+table(tmp$BEST[tmp$strain=="CAST_EiJ"])
+##############################################################################
+```
+
+### Confusion matrix
+
+```{r, eval=FALSE}
+library(caret)
+numLlvs <- 5
+cm <- confusionMatrix(
+    factor(mergeData$demuxClass),
+    factor(mergeData$spcClass)) 
+# extract the confusion matrix values as data.frame
+cm_d <- as.data.frame(cm$table)
+# confusion matrix statistics as data.frame
+cm_st <-data.frame(cm$overall)
+# round the values
+cm_st$cm.overall <- round(cm_st$cm.overall,2)
+
+# here we also have the rounded percentage values
+cm_p <- as.data.frame(prop.table(cm$table))
+cm_d$Perc <- round(cm_p$Freq*100,2)
+library(ggplot2)     # to plot
+library(gridExtra)   # to put more
+library(grid)        # plot together
+
+# plotting the matrix
+cm_d_p <-  ggplot(data = cm_d, aes(x = Prediction , y =  Reference, fill = Freq))+
+    geom_tile() +
+    geom_text(aes(label = paste("",Freq,",",Perc,"%")), color = 'white', size = 6) +
+    theme_light() +
+    guides(fill=FALSE) 
+
+# plotting the stats
+cm_st_p <-  tableGrob(cm_st)
+
+# all together
+grid.arrange(cm_d_p, cm_st_p,nrow = 1, ncol = 2, 
+             top=textGrob(selSample, gp=gpar(fontsize=15,font=1)))
+
+
+##############################################################################
+```
+
+
+
+### Utilities
+
+```{bash, eval=FALSE}
+### Utilities
+# Copy specific files using scp
+
+scp koharv@login.sumner.jax.org:'/projects/koharv/shared/souporcell/MS20020/output/*.{txt,tsv}' MS20020 
+
+# Copy specific files using rsync
+rsync -zarv --include="*/" --include="*.tsv" --include="*.txt" --exclude="*" koharv@login.sumner.jax.org:/projects/koharv/shared/souporcell/MS20022/ ~/Documents/Work/Cube/MS20022 
+
+rsync -zarv --include="*/" --include="*.best" --include="*.sing2" --include="*.single" --exclude="*" koharv@login.sumner.jax.org:/fastscratch/koharv/shared/souporcell/ ~/Documents/Work/Cube/souporcell 
+
+rsync -zarv --include="*/" --include="*.tsv*" --exclude="*" koharv@login.sumner.jax.org:/fastscratch/koharv/shared/souporcell/ ~/Documents/Work/Cube/souporcell
+
+##############################################################################
+# Unzip barcode files
+cd ../MS20077
+gzip -d cellranger/filtered_feature_bc_matrix/barcodes.tsv.gz
+cp ../MS20063/job2.sh .
+cp ../MS20063/demux.sh .
+sbatch demux.sh
+sbatch job2.sh 
+
+```
+
+
